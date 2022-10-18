@@ -54,7 +54,7 @@ def filter_predictions(predictions, threshold):
 
 
 def get_text_from_dict(dict):
-    text = "Predected Genres are "
+    text = "Sentiment is "
     for key in dict:
         text += key + ", "
     return text
