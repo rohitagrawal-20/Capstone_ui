@@ -8,6 +8,7 @@ import requests
 import json
 import os
 import re
+from transformers import BertTokenizer
 
 classes = pickle.load(open('labels.pkl', 'rb'))
 
@@ -24,40 +25,44 @@ predict_threshold = float(predict_threshold)
 
 def get_responce_from_model_server(msg):
     data = json.dumps(
-        {"signature_name": "serving_default", "instances": [msg]})
+        {"signature_name": "serving_default", "instances": msg})
     headers = {"content-type": "application/json"}
     json_response = requests.post(
         tenorflow_url, data=data, headers=headers)
     predictions = json.loads(json_response.text)['predictions']
-    return predictions
+    if predictions>=0.5:
+        return "Negative"
+    else:
+        return "Positive"
 
-# create a dictionory of predection and class name
+def bert_encode(data,tokenizer,maximum_length) :
+    input_ids = []
+    attention_masks = []
+  
 
+    for i in range(len(data)):
+        encoded = tokenizer.encode_plus(
+        
+        data[i],
+        add_special_tokens=True,
+        max_length=maximum_length,
+        pad_to_max_length=True,
+        
+        return_attention_mask=True,
+        
+      )
+      
+        input_ids.append(encoded['input_ids'])
+        attention_masks.append(encoded['attention_mask'])
+    return {
+        'input_ids':input_ids,
+        'attention_mask':attention_masks
+    }
 
-def get_prediction_dict(predictions):
-    prediction_dict = {}
-    for i, p in enumerate(predictions[0]):
-        prediction_dict[classes[i]] = p
-    return prediction_dict
+def importing_tokenizer():
+  tokenizer = BertTokenizer.from_pretrained('bert-base-uncased', do_lower_case=True)
+  return tokenizer
 
-# Filter the dictionary to get only the intents that are above the threshold
-
-
-def filter_predictions(predictions, threshold):
-    filtered_predictions = {}
-    for key, value in predictions.items():
-        if value > threshold:
-            filtered_predictions[key] = value
-    return filtered_predictions
-
-# Convert dictionary keys to text seprated by comma
-
-
-def get_text_from_dict(dict):
-    text = "Sentiment is "
-    for key in dict:
-        text += key + ", "
-    return text
 
 # function to clean the word of any punctuation or special characters and lowwer it
 
@@ -68,15 +73,13 @@ def cleanPunc(sentence):
     cleaned = cleaned.strip()
     cleaned = cleaned.replace("\n", " ")
     cleaned = cleaned.lower()
-    return cleaned
+    return [cleaned]
 
 
 def chatbot_response(msg):
     msg = cleanPunc(msg)
+    dic = bert_encode(msg,tokenizer,16)
     pred = get_responce_from_model_server(msg)
-    pred = get_prediction_dict(pred)
-    pred = filter_predictions(pred, predict_threshold)
-    pred = get_text_from_dict(pred)
     return pred
 
 
@@ -96,5 +99,6 @@ def get_bot_response():
 
 
 if __name__ == "__main__":
+    tokenizer = importing_tokenizer()
     run_with_ngrok(app)
     app.run()
